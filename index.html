@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archive Studio - Portfolio</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" crossorigin="anonymous"></script>
+    
+    <style>
+        * { box-sizing: border-box; }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        #header {
+            position: absolute; top: 20px; left: 20px; z-index: 10;
+            font-size: 12px; color: #000000; letter-spacing: 0.05em;
+        }
+
+        #debug-box {
+            position: absolute; top: 50px; left: 20px; z-index: 9999;
+            color: #ff0000; font-family: monospace; font-size: 12px;
+            background: rgba(255,255,255,0.95); padding: 16px;
+            border: 1px solid #ff0000; display: none; line-height: 1.6;
+            max-width: 500px; max-height: 80vh; overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        #archive-canvas { width: 100vw; height: 100vh; cursor: grab; }
+        #archive-canvas:active { cursor: grabbing; }
+
+        .link {
+            stroke: #000000; stroke-width: 0.5px; opacity: 0.04; 
+            transition: opacity 0.3s ease;
+        }
+        .link.highlighted { opacity: 1; stroke-width: 1.2px; }
+
+        .node { cursor: pointer; will-change: transform; }
+        .node image { 
+            filter: grayscale(100%) contrast(110%); 
+            transition: filter 0.2s ease; 
+            will-change: filter;
+            transform: translateZ(0);
+        }
+        .node:hover image { filter: grayscale(0%) contrast(100%); }
+        .node rect { fill: #f7f7f7; stroke: none; }
+        .node text { font-size: 10px; fill: #000000; letter-spacing: 0.02em; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <strong>ARCHIVE_STUDIO</strong> // SHOWING <span id="count">0</span> PHOTOS
+    </div>
+
+    <div id="debug-box"></div>
+
+    <script>
+        // 全域錯誤側錄
+        window.onerror = function(message, source, lineno, colno, error) {
+            var box = document.getElementById('debug-box');
+            if (box) { 
+                box.style.display = 'block'; 
+                box.innerHTML += '<div style="font-weight:bold; margin-bottom:5px;">❌ 系統運行錯誤:</div>' +
+                                 '<div>' + message + ' (Line: ' + lineno + ')</div>'; 
+            }
+            return false;
+        };
+    </script>
+
+    <svg id="archive-canvas"></svg>
+
+    <script>
+        // ==========================================
+        // 【請在此處檢查或貼上你的資料庫】
+        // ==========================================
+        const data = {
+            nodes: [
+                { id: "T_OBJECT", title: "OBJECT", isTag: true },
+                { id: "T_LANDSCAPE", title: "LANDSCAPE", isTag: true },
+                { id: "T_TYPOLOGY", title: "TYPOLOGY", isTag: true },
+                { id: "T_SCALE", title: "SCALE", isTag: true },
+                { id: "T_JOURNEY", title: "JOURNEY", isTag: true },
+                { id: "T_VULNERABILITY", title: "VULNERABILITY", isTag: true },
+                { id: "T_DRAWING", title: "DRAWING", isTag: true },
+
+                { id: "A_01", title: "", img: "images/project_a_01.jpg", size: "1:2" },
+                { id: "A_02", title: "PROJECT_A // 02", img: "images/project_a_02.jpg", size: "2:1" },
+                { id: "A_03", title: "PROJECT_A // 03", img: "images/project_a_03.jpg", size: "1:2" },
+
+                { id: "B_01", title: "PROJECT_B // 01", img: "images/project_b_01.jpg", size: "1:1" },
+                { id: "B_02", title: "PROJECT_B // 02", img: "images/project_b_02.jpg", size: "1:1" },
+                { id: "B_03", title: "PROJECT_B // 03", img: "images/project_b_03.jpg", size: "1:1" },
+                { id: "B_04", title: "PROJECT_B // 04", img: "images/project_b_04.jpg", size: "2:1" },
+
+                { id: "C_01", title: "PROJECT_C // 01", img: "images/project_c_01.jpg", size: "1:2" },
+                { id: "C_02", title: "PROJECT_C // 02", img: "images/project_c_02.jpg", size: "2:1" },
+                { id: "C_03", title: "PROJECT_C // 03", img: "images/project_c_03.jpg", size: "1:1" },
+                { id: "C_04", title: "PROJECT_C // 04", img: "images/project_c_04.jpg", size: "1:1" },
+                { id: "C_05", title: "PROJECT_C // 05", img: "images/project_c_05.jpg", size: "2:1" },
+
+                { id: "D_01", title: "PROJECT_D // 01", img: "images/project_d_01.jpg", size: "2:1" },
+                { id: "D_02", title: "PROJECT_D // 02", img: "images/project_d_02.jpg", size: "1:2" },
+                { id: "D_03", title: "PROJECT_D // 03", img: "images/project_d_03.jpg", size: "1:2" },
+                { id: "D_04", title: "PROJECT_D // 04", img: "images/project_d_04.jpg", size: "2:1" },
+
+                { id: "E_01", title: "PROJECT_E // 01", img: "images/project_e_01.jpg", size: "1:1" },
+                { id: "E_02", title: "PROJECT_E // 02", img: "images/project_e_02.jpg", size: "1:1" },
+                { id: "E_03", title: "PROJECT_E // 03", img: "images/project_e_03.jpg", size: "1:1" },
+
+                { id: "F_01", title: "PROJECT_F // 01", img: "images/project_f_01.jpg", size: "1:1" },
+                { id: "F_02", title: "PROJECT_F // 02", img: "images/project_f_02.jpg", size: "1:1" },
+                { id: "F_03", title: "PROJECT_F // 03", img: "images/project_f_03.jpg", size: "2:1" },
+            ],
+            links: [
+                { source: "A_01", target: "A_02" },
+                { source: "A_02", target: "A_03" },
+                { source: "B_01", target: "B_02" },
+                { source: "B_02", target: "B_03" },
+                { source: "B_03", target: "B_04" },
+                { source: "C_01", target: "C_02" },
+                { source: "C_02", target: "C_03" },
+                { source: "C_03", target: "C_04" },
+                { source: "C_04", target: "C_05" },
+                { source: "D_01", target: "D_02" },
+                { source: "D_02", target: "D_03" },
+                { source: "D_03", target: "D_04" },
+                { source: "E_01", target: "E_02" },
+                { source: "E_02", target: "E_03" },
+                { source: "F_01", target: "F_02" },
+                { source: "C_02", target: "C_03" },
+                { source: "B_01", target: "T_OBJECT" },
+                { source: "D_01", target: "T_OBJECT" },
+                { source: "D_04", target: "T_DRAWING" },
+                { source: "C_04", target: "T_DRAWING" },
+                { source: "B_04", target: "T_DRAWING" },
+                { source: "E_01", target: "T_DRAWING" },
+                { source: "C_01", target: "T_JOURNEY" },
+                { source: "A_01", target: "T_JOURNEY" },
+                { source: "C_05", target: "T_SCALE" },
+                { source: "F_01", target: "T_TYPOLOGY" },
+                { source: "E_01", target: "T_TYPOLOGY" },
+                { source: "C_03", target: "T_VULNERABILITY" },
+                { source: "A_01", target: "T_LANDSCAPE" },
+                { source: "B_01", target: "T_LANDSCAPE" }
+            ]
+        };
+
+        // ==========================================
+        // 【解法 2】智能防呆：在 D3 啟動前，自動抓出寫錯的連線 ID
+        // ==========================================
+        const nodeIds = new Set(data.nodes.map(n => n.id));
+        const errorBox = document.getElementById('debug-box');
+        let hasDataError = false;
+
+        data.links.forEach((l, index) => {
+            if (!nodeIds.has(l.source)) {
+                errorBox.style.display = 'block';
+                errorBox.innerHTML += `<div style="color:#ff5555;">⚠️ <b>連線資料錯誤 (第 ${index + 1} 筆)</b>：<br>你叫一條線從 <b>"${l.source}"</b> 出發，但在上面的 nodes 名單裡找不到這個 ID！</div><hr style="border:0;border-top:1px solid #eee;margin:8px 0;">`;
+                hasDataError = true;
+            }
+            if (!nodeIds.has(l.target)) {
+                errorBox.style.display = 'block';
+                errorBox.innerHTML += `<div style="color:#ff5555;">⚠️ <b>連線資料錯誤 (第 ${index + 1} 筆)</b>：<br>你叫一條線連到 <b>"${l.target}"</b>，但在上面的 nodes 名單裡找不到這個 ID！</div><hr style="border:0;border-top:1px solid #eee;margin:8px 0;">`;
+                hasDataError = true;
+            }
+        });
+
+        // 更新照片數量計算
+        document.getElementById('count').innerText = data.nodes.filter(d => !d.isTag).length;
+
+        // 如果資料有錯，強制暫停 D3 運行，避免全白畫面讓人無法除錯
+        if (hasDataError) {
+            errorBox.innerHTML += `<div style="font-weight:bold; color:black; margin-top:10px;">💡 請修正上述 ID 衝突後，重新整理網頁。</div>`;
+            throw new Error("D3 為了防止畫面崩潰，已由防呆機制攔截並暫停服務。");
+        }
+
+        // ==========================================
+        // D3 渲染核心 (完全正常運作)
+        // ==========================================
+        const svg = d3.select("#archive-canvas");
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const g = svg.append("g");
+
+        svg.call(d3.zoom()
+            .scaleExtent([0.1, 3])
+            .on("zoom", (event) => { g.attr("transform", event.transform); }));
+
+        const simulation = d3.forceSimulation(data.nodes)
+            .force("link", d3.forceLink(data.links).id(d => d.id).distance(150))
+            .force("charge", d3.forceManyBody().strength(-600))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(d => {
+                if (d.isTag) return 60;
+                if (d.size === "1:2" || d.size === "2:1") return 110; 
+                return 75;
+            }));
+
+        const link = g.append("g")
+            .selectAll("line")
+            .data(data.links)
+            .join("line")
+            .attr("class", "link");
+
+        const node = g.append("g")
+            .selectAll(".node")
+            .data(data.nodes)
+            .join("g")
+            .attr("class", "node")
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        node.each(function(d) {
+            const el = d3.select(this);
+            if (!d.isTag) {
+                let w = 100, h = 100;
+                if (d.size === "2:1") { w = 180; h = 90; }   
+                if (d.size === "1:2") { w = 90;  h = 180; }  
+                
+                const x = -w / 2;
+                const y = -h / 2;
+
+                el.append("rect")
+                    .attr("x", x).attr("y", y)
+                    .attr("width", w).attr("height", h);
+
+                el.append("image")
+                    .attr("href", d.img)
+                    .attr("x", x).attr("y", y)
+                    .attr("width", w).attr("height", h)
+                    .attr("preserveAspectRatio", "xMidYMid slice");
+
+                el.append("text")
+                    .attr("x", x)
+                    .attr("y", (h / 2) + 15)
+                    .text(d.title);
+            } else {
+                el.append("text")
+                    .attr("text-anchor", "middle")
+                    .attr("y", 5)
+                    .style("font-weight", "bold")
+                    .text(d.title);
+            }
+        });
+
+        node.on("mouseenter", function(event, d) {
+            link.classed("highlighted", l => l.source.id === d.id || l.target.id === d.id);
+        }).on("mouseleave", function() {
+            link.classed("highlighted", false);
+        });
+
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+            node
+                .attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x; d.fy = d.y;
+        }
+        function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null; d.fy = null;
+        }
+        window.addEventListener('resize', () => {
+            simulation.force("center", d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2));
+            simulation.alpha(0.3).restart();
+        });
+    </script>
+</body>
+</html>
