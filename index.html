@@ -48,6 +48,59 @@
         .node:hover image { filter: grayscale(0%) contrast(100%); }
         .node rect { fill: #f7f7f7; stroke: none; }
         .node text { font-size: 10px; fill: #000000; letter-spacing: 0.02em; pointer-events: none; }
+
+        /* ============================================================
+           【Office KGDVS 雙軌內頁滿版樣式】
+           ============================================================ */
+        #kgdvs-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: #ffffff; z-index: 10000;
+            display: none; /* 由 JS 控管切換為 flex */
+            flex-direction: row;
+            overflow: hidden;
+        }
+
+        /* 左右對分欄位 */
+        .split-side {
+            width: 50vw; height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+            background-color: #ffffff;
+            cursor: pointer;
+            user-select: none;
+        }
+        .left-side { border-right: 0.5px solid rgba(0,0,0,0.1); }
+
+        .split-side img {
+            max-width: 85%; max-height: 75%;
+            object-fit: contain;
+            display: block;
+            filter: grayscale(100%) contrast(105%); 
+            transition: filter 0.3s ease;
+        }
+        .split-side:hover img {
+            filter: grayscale(0%) contrast(100%);
+        }
+
+        /* 邊角與周邊文字資訊（外觀不干擾中間圖面點擊） */
+        .overlay-text {
+            position: absolute; font-size: 11px; letter-spacing: 0.08em; 
+            color: #000000; z-index: 10005; pointer-events: none;
+            text-transform: uppercase; font-family: monospace;
+        }
+        
+        #text-top-left     { top: 24px; left: 24px; font-weight: bold; }
+        #text-top-center   { top: 24px; left: 50%; transform: translateX(-50%); color: #666666; }
+        
+        /* 關閉按鈕需要被點擊 */
+        #text-top-right    { 
+            top: 20px; right: 24px; pointer-events: auto; 
+            background: none; border: none; font-size: 14px; cursor: pointer; 
+        }
+        
+        #text-bottom-left  { bottom: 24px; left: 24px; }
+        #text-bottom-center{ bottom: 24px; left: 50%; transform: translateX(-50%); }
+        #text-bottom-right { bottom: 24px; right: 24px; }
     </style>
 </head>
 <body>
@@ -57,6 +110,26 @@
     </div>
 
     <div id="debug-box"></div>
+
+    <div id="kgdvs-overlay">
+        <div id="text-top-left" class="overlay-text">—</div>
+        <div id="text-top-center" class="overlay-text">OFFICE ARCHIVE</div>
+        <button id="text-top-right" class="overlay-text" onclick="closeOverlay()">✕</button>
+        
+        <div id="text-bottom-left" class="overlay-text">PHOTO 0/0</div>
+        <div id="text-bottom-center" class="overlay-text">↓ INFO</div>
+        <div id="text-bottom-right" class="overlay-text">DRAWING 0/0</div>
+
+        <div class="split-side left-side" onclick="nextPhoto()">
+            <img id="current-photo" src="" alt="Project Photograph">
+        </div>
+        
+        <div class="split-side right-side" onclick="nextDrawing()">
+            <img id="current-drawing" src="" alt="Architectural Drawing">
+        </div>
+    </div>
+
+    <svg id="archive-canvas"></svg>
 
     <script>
         // 全域錯誤側錄
@@ -71,11 +144,9 @@
         };
     </script>
 
-    <svg id="archive-canvas"></svg>
-
     <script>
         // ==========================================
-        // 【請在此處檢查或貼上你的資料庫】
+        // 【完全保留你的原始資料庫】
         // ==========================================
         const data = {
             nodes: [
@@ -149,9 +220,7 @@
             ]
         };
 
-        // ==========================================
-        // 【解法 2】智能防呆：在 D3 啟動前，自動抓出寫錯的連線 ID
-        // ==========================================
+        // 智能防呆
         const nodeIds = new Set(data.nodes.map(n => n.id));
         const errorBox = document.getElementById('debug-box');
         let hasDataError = false;
@@ -169,17 +238,15 @@
             }
         });
 
-        // 更新照片數量計算
         document.getElementById('count').innerText = data.nodes.filter(d => !d.isTag).length;
 
-        // 如果資料有錯，強制暫停 D3 運行，避免全白畫面讓人無法除錯
         if (hasDataError) {
             errorBox.innerHTML += `<div style="font-weight:bold; color:black; margin-top:10px;">💡 請修正上述 ID 衝突後，重新整理網頁。</div>`;
             throw new Error("D3 為了防止畫面崩潰，已由防呆機制攔截並暫停服務。");
         }
 
         // ==========================================
-        // D3 渲染核心 (完全正常運作)
+        // D3 渲染核心 (完美運作)
         // ==========================================
         const svg = d3.select("#archive-canvas");
         const width = window.innerWidth;
@@ -249,10 +316,19 @@
             }
         });
 
+        // 節點互動：滑入高亮、滑出取消、✨點擊非標籤節點觸發 Office 雙軌滿版內頁
         node.on("mouseenter", function(event, d) {
             link.classed("highlighted", l => l.source.id === d.id || l.target.id === d.id);
         }).on("mouseleave", function() {
             link.classed("highlighted", false);
+        }).on("click", function(event, d) {
+            if (!d.isTag) {
+                // 智慧前綴分析：從 "A_01" 提取出 "A" 傳入控制系統
+                const prefix = d.id.split('_')[0]; 
+                if (projectPages[prefix]) {
+                    openKgdvsOverlay(prefix);
+                }
+            }
         });
 
         simulation.on("tick", () => {
@@ -276,6 +352,98 @@
             simulation.force("center", d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2));
             simulation.alpha(0.3).restart();
         });
+
+        // ============================================================
+        // ✨ 【Office KGDVS 獨立控制核心系統】
+        // ============================================================
+        // 幫你將 A~F 現有的空間照片整合好，並為右半邊的「幾何建築圖（drawings）」預留了對應空間
+        const projectPages = {
+            "A": {
+                photos: ["images/project_a_01.jpg", "images/project_a_02.jpg", "images/project_a_03.jpg"],
+                drawings: ["images/project_a_drawing_01.jpg"] // 👈 這裡可換成你自己的平面、剖面或軸測圖路徑
+            },
+            "B": {
+                photos: ["images/project_b_01.jpg", "images/project_b_02.jpg", "images/project_b_03.jpg", "images/project_b_04.jpg"],
+                drawings: ["images/project_b_drawing_01.jpg"]
+            },
+            "C": {
+                photos: ["images/project_c_01.jpg", "images/project_c_02.jpg", "images/project_c_03.jpg", "images/project_c_04.jpg", "images/project_c_05.jpg"],
+                drawings: ["images/project_c_drawing_01.jpg"]
+            },
+            "D": {
+                photos: ["images/project_d_01.jpg", "images/project_d_02.jpg", "images/project_d_03.jpg", "images/project_d_04.jpg"],
+                drawings: ["images/project_d_drawing_01.jpg"]
+            },
+            "E": {
+                photos: ["images/project_e_01.jpg", "images/project_e_02.jpg", "images/project_e_03.jpg"],
+                drawings: ["images/project_e_drawing_01.jpg"]
+            },
+            "F": {
+                photos: ["images/project_f_01.jpg", "images/project_f_02.jpg", "images/project_f_03.jpg"],
+                drawings: ["images/project_f_drawing_01.jpg"]
+            }
+        };
+
+        let currentProjectName = "";
+        let activePhotoIndex = 0;   // 左側相簿計數器
+        let activeDrawingIndex = 0; // 右側圖面計數器
+
+        // 開啟內頁
+        function openKgdvsOverlay(prefix) {
+            currentProjectName = prefix;
+            activePhotoIndex = 0;   
+            activeDrawingIndex = 0; 
+            
+            document.getElementById('text-top-left').innerText = `PROJECT_${prefix}`;
+            
+            renderOverlay(); 
+            document.getElementById('kgdvs-overlay').style.display = 'flex';
+        }
+
+        // 獨立軌道渲染核心
+        function renderOverlay() {
+            const project = projectPages[currentProjectName];
+            if (!project) return;
+
+            // 1. 左側：渲染實景照片
+            if (project.photos && project.photos.length > 0) {
+                document.getElementById('current-photo').src = project.photos[activePhotoIndex];
+                document.getElementById('text-bottom-left').innerText = `PHOTO ${activePhotoIndex + 1} / ${project.photos.length}`;
+            } else {
+                document.getElementById('current-photo').src = "";
+                document.getElementById('text-bottom-left').innerText = "PHOTO 0 / 0";
+            }
+
+            // 2. 右側：渲染建築圖面
+            if (project.drawings && project.drawings.length > 0) {
+                document.getElementById('current-drawing').src = project.drawings[activeDrawingIndex];
+                document.getElementById('text-bottom-right').innerText = `DRAWING ${activeDrawingIndex + 1} / ${project.drawings.length}`;
+            } else {
+                document.getElementById('current-drawing').src = "";
+                document.getElementById('text-bottom-right').innerText = "DRAWING 0 / 0";
+            }
+        }
+
+        // 點擊左欄：僅循環換照片
+        function nextPhoto() {
+            const project = projectPages[currentProjectName];
+            if (!project || !project.photos || project.photos.length <= 1) return;
+            activePhotoIndex = (activePhotoIndex + 1) % project.photos.length;
+            renderOverlay();
+        }
+
+        // 點擊右欄：僅循環換圖面
+        function nextDrawing() {
+            const project = projectPages[currentProjectName];
+            if (!project || !project.drawings || project.drawings.length <= 1) return;
+            activeDrawingIndex = (activeDrawingIndex + 1) % project.drawings.length;
+            renderOverlay();
+        }
+
+        // 關閉滿版內頁
+        function closeOverlay() {
+            document.getElementById('kgdvs-overlay').style.display = 'none';
+        }
     </script>
 </body>
 </html>
