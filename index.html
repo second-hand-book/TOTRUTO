@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HUANG HONG LIANG</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" crossorigin="anonymous"></script>
+    
+    <style>
+        * { box-sizing: border-box; }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        #header {
+            position: absolute; top: 20px; left: 20px; z-index: 10;
+            font-size: 12px; color: #000000; letter-spacing: 0.05em;
+        }
+
+        #debug-box {
+            position: absolute; top: 50px; left: 20px; z-index: 9999;
+            color: #ff0000; font-family: monospace; font-size: 12px;
+            background: rgba(255,255,255,0.95); padding: 16px;
+            border: 1px solid #ff0000; display: none; line-height: 1.6;
+            max-width: 500px; max-height: 80vh; overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        #archive-canvas { width: 100vw; height: 100vh; cursor: grab; }
+        #archive-canvas:active { cursor: grabbing; }
+
+        .link {
+            stroke: #000000; stroke-width: 0.5px; opacity: 0.04; 
+            transition: opacity 0.3s ease;
+        }
+        .link.highlighted { opacity: 1; stroke-width: 1.2px; }
+
+        .node { cursor: pointer; will-change: transform; }
+        .node image { 
+            filter: grayscale(100%) contrast(110%); 
+            transition: filter 0.2s ease; 
+            will-change: filter;
+            transform: translateZ(0);
+        }
+        .node:hover image { filter: grayscale(0%) contrast(100%); }
+        .node rect { fill: #f7f7f7; stroke: none; }
+        .node text { font-size: 10px; fill: #000000; letter-spacing: 0.02em; pointer-events: none; }
+
+        /* 隱藏標題的 CSS 樣式 */
+        .hide-image-titles .image-node-title {
+            display: none !important;
+        }
+
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: #ffffff; z-index: 10000;
+            display: none; 
+            flex-direction: row;
+            overflow: hidden;
+        }
+
+        .split-side {
+            width: 50vw; height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+            background-color: #ffffff;
+            cursor: pointer;
+            user-select: none;
+        }
+        .left-side { border-right: 0.5px solid rgba(0,0,0,0.1); }
+
+        .split-side img {
+            max-width: 85%; max-height: 75%;
+            object-fit: contain;
+            display: block;
+            filter: none;
+            transition: filter 0.3s ease;
+        }
+        .split-side:hover img { filter: none; }
+
+        .overlay-text {
+            position: absolute; font-size: 11px; letter-spacing: 0.08em; 
+            color: #000000; z-index: 10005; pointer-events: none;
+            text-transform: uppercase; font-family: monospace;
+        }
+        
+        #text-top-left     { top: 24px; left: 24px; font-weight: bold; }
+        #text-top-center   { top: 24px; left: 50%; transform: translateX(-50%); color: #666666; }
+        
+        #text-top-right    { 
+            top: 20px; right: 24px; pointer-events: auto; 
+            background: none; border: none; font-size: 14px; cursor: pointer; 
+        }
+        
+        #text-bottom-left  { bottom: 24px; left: 24px; }
+        #text-bottom-center{ bottom: 24px; left: 50%; transform: translateX(-50%); }
+        #text-bottom-right { bottom: 24px; right: 24px; }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <strong>HUANG HONG LIANG</strong>
+    </div>
+
+    <div id="debug-box"></div>
+
+    <div id="overlay">
+        <div id="text-top-left" class="overlay-text">—</div>
+        <div id="text-top-center" class="overlay-text">OFFICE ARCHIVE</div>
+        <button id="text-top-right" class="overlay-text" onclick="closeOverlay()">✕</button>
+        
+        <div id="text-bottom-left" class="overlay-text">PHOTO 0/0</div>
+        <div id="text-bottom-center" class="overlay-text">↓ INFO</div>
+        <div id="text-bottom-right" class="overlay-text">DRAWING 0/0</div>
+
+        <div class="split-side left-side" onclick="nextPhoto()">
+            <img id="current-photo" src="" alt="Project Photograph">
+        </div>
+        
+        <div class="split-side right-side" onclick="nextDrawing()">
+            <img id="current-drawing" src="" alt="Architectural Drawing">
+        </div>
+    </div>
+
+    <svg id="archive-canvas"></svg>
+
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            var box = document.getElementById('debug-box');
+            if (box) { 
+                box.style.display = 'block'; 
+                box.innerHTML += '<div style="font-weight:bold; margin-bottom:5px;">❌ 系統運行錯誤:</div>' +
+                                 '<div>' + message + ' (Line: ' + lineno + ')</div>'; 
+            }
+            return false;
+        };
+    </script>
+
+    <script>
+        // ============================================================
+        // ⚙️ 全域設定開關
+        // ============================================================
+        // true  = 預設顯示圖片下方名稱 (方便調整)
+        // false = 預設隱藏圖片下方名稱 (展示模式)
+        let SHOW_IMAGE_TITLES = true; 
+
+
+        // ==========================================
+        // 【主頁面節點資料庫】
+        // ==========================================
+        const data = {
+            nodes: [
+                { id: "T_OBJECT", title: "OBJECT", isTag: true },
+                { id: "T_LANDSCAPE", title: "LANDSCAPE", isTag: true },
+                { id: "T_TYPOLOGY", title: "TYPOLOGY", isTag: true },
+                { id: "T_SCALE", title: "SCALE", isTag: true },
+                { id: "T_JOURNEY", title: "JOURNEY", isTag: true },
+                { id: "T_VULNERABILITY", title: "VULNERABILITY", isTag: true },
+                { id: "T_DRAWING", title: "DRAWING", isTag: true },
+
+                { id: "A_01", title: "PROJECT_A // 01", img: "images/project_a_01.jpg", size: "1:2", project: "PROJECT_A" },
+                { id: "A_02", title: "PROJECT_A // 02", img: "images/project_a_drawing_02.jpg", size: "2:1", project: "PROJECT_A" },
+
+                { id: "B_01", title: "PROJECT_B // 01", img: "images/project_b_01.jpg", size: "1:1", project: "PROJECT_B" },
+                { id: "B_02", title: "PROJECT_B // 02", img: "images/project_b_02.jpg", size: "1:1", project: "PROJECT_B" },
+                { id: "B_03", title: "PROJECT_B // 03", img: "images/project_b_03.jpg", size: "1:1", project: "PROJECT_B" },
+
+                { id: "C_01", title: "PROJECT_C // 01", img: "images/project_c_01.jpg", size: "2:1", project: "PROJECT_C" },
+                { id: "C_02", title: "PROJECT_C // 02", img: "images/project_c_02.jpg", size: "1:2", project: "PROJECT_C" },
+                { id: "C_03", title: "PROJECT_C // 03", img: "images/project_c_03.jpg", size: "2:1", project: "PROJECT_C" },
+                { id: "C_04", title: "PROJECT_C // 04", img: "images/project_c_04.jpg", size: "1:1", project: "PROJECT_C" },
+
+                { id: "D_01", title: "PROJECT_D // 01", img: "images/project_d_01.jpg", size: "2:1", project: "PROJECT_D" },
+                { id: "D_02", title: "PROJECT_D // 02", img: "images/project_d_03.jpg", size: "1:2", project: "PROJECT_D" },
+                { id: "D_03", title: "PROJECT_D // 03", img: "images/project_d_02.jpg", size: "1:2", project: "PROJECT_D" },
+                { id: "D_04", title: "PROJECT_D // 04", img: "images/project_d_drawing_01.jpg", size: "2:1", project: "PROJECT_D" },
+
+                { id: "E_01", title: "PROJECT_E // 01", img: "images/project_e_01.jpg", size: "1:1", project: "PROJECT_E" },
+                { id: "E_02", title: "PROJECT_E // 02", img: "images/project_e_02.jpg", size: "1:1", project: "PROJECT_E" },
+                { id: "E_03", title: "PROJECT_E // 03", img: "images/project_e_03.jpg", size: "1:1", project: "PROJECT_E" },
+
+                { id: "F_01", title: "PROJECT_F // 01", img: "images/project_f_01.jpg", size: "1:1", project: "PROJECT_F" },
+                { id: "F_02", title: "PROJECT_F // 02", img: "images/project_f_02.jpg", size: "1:1", project: "PROJECT_F" },
+                { id: "F_03", title: "PROJECT_F // 03", img: "images/project_f_03.jpg", size: "2:1", project: "PROJECT_F" },
+
+                { id: "G_01", title: "PROJECT_G // 01", img: "images/project_g_01.jpg", size: "1:2", project: "PROJECT_G" },
+                { id: "G_02", title: "PROJECT_G // 02", img: "images/project_g_02.jpg", size: "1:1", project: "PROJECT_G" }
+            ],
+            links: [
+                { source: "A_01", target: "A_02" },
+                { source: "B_01", target: "B_02" },
+                { source: "B_02", target: "B_03" },
+                { source: "C_01", target: "C_02" },
+                { source: "C_02", target: "C_03" },
+                { source: "C_03", target: "C_04" },
+                { source: "D_01", target: "D_02" },
+                { source: "D_02", target: "D_03" },
+                { source: "D_03", target: "D_04" },
+                { source: "E_01", target: "E_02" },
+                { source: "E_02", target: "E_03" },
+                { source: "F_01", target: "F_02" },
+                { source: "F_02", target: "F_03" },
+                { source: "G_01", target: "G_02" },
+                { source: "B_01", target: "T_OBJECT" },
+                { source: "D_01", target: "T_OBJECT" },
+                { source: "G_01", target: "T_OBJECT" },
+                { source: "D_04", target: "T_DRAWING" },
+                { source: "C_04", target: "T_DRAWING" },
+                { source: "E_01", target: "T_DRAWING" },
+                { source: "C_01", target: "T_JOURNEY" },
+                { source: "A_01", target: "T_JOURNEY" },
+                { source: "F_01", target: "T_TYPOLOGY" },
+                { source: "E_01", target: "T_TYPOLOGY" },
+                { source: "C_03", target: "T_VULNERABILITY" },
+                { source: "A_01", target: "T_LANDSCAPE" },
+                { source: "B_01", target: "T_LANDSCAPE" }
+            ]
+        };
+
+        // 智能防呆
+        const nodeIds = new Set(data.nodes.map(n => n.id));
+        const errorBox = document.getElementById('debug-box');
+        let hasDataError = false;
+
+        data.links.forEach((l, index) => {
+            if (!nodeIds.has(l.source)) {
+                errorBox.style.display = 'block';
+                errorBox.innerHTML += `<div style="color:#ff5555;">⚠️ <b>連線資料錯誤 (第 ${index + 1} 筆)</b>：<br>你叫一條線從 <b>"${l.source}"</b> 出發，但在上面的 nodes 名單裡找不到這個 ID！</div><hr style="border:0;border-top:1px solid #eee;margin:8px 0;">`;
+                hasDataError = true;
+            }
+            if (!nodeIds.has(l.target)) {
+                errorBox.style.display = 'block';
+                errorBox.innerHTML += `<div style="color:#ff5555;">⚠️ <b>連線資料錯誤 (第 ${index + 1} 筆)</b>：<br>你叫一條線連到 <b>"${l.target}"</b>，但在上面的 nodes 名單裡找不到這個 ID！</div><hr style="border:0;border-top:1px solid #eee;margin:8px 0;">`;
+                hasDataError = true;
+            }
+        });
+
+        if (hasDataError) {
+            errorBox.innerHTML += `<div style="font-weight:bold; color:black; margin-top:10px;">💡 請修正上述 ID 衝突後，重新整理網頁。</div>`;
+            throw new Error("D3 為了防止畫面崩潰，已由防呆機制攔截並暫停服務。");
+        }
+
+        // ==========================================
+        // D3 渲染核心
+        // ==========================================
+        const svg = d3.select("#archive-canvas");
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        const g = svg.append("g");
+
+        // 如果預設隱藏，初始化加入 CSS Class
+        if (!SHOW_IMAGE_TITLES) {
+            svg.classed("hide-image-titles", true);
+        }
+
+        svg.call(d3.zoom()
+            .scaleExtent([0.1, 3])
+            .on("zoom", (event) => { g.attr("transform", event.transform); }));
+
+        const simulation = d3.forceSimulation(data.nodes)
+            .force("link", d3.forceLink(data.links).id(d => d.id).distance(150))
+            .force("charge", d3.forceManyBody().strength(-600))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(d => {
+                if (d.isTag) return 60;
+                if (d.size === "1:2" || d.size === "2:1") return 110; 
+                return 75;
+            }));
+
+        const link = g.append("g")
+            .selectAll("line")
+            .data(data.links)
+            .join("line")
+            .attr("class", "link");
+
+        const node = g.append("g")
+            .selectAll(".node")
+            .data(data.nodes)
+            .join("g")
+            .attr("class", "node")
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        node.each(function(d) {
+            const el = d3.select(this);
+            if (!d.isTag) {
+                let w = 100, h = 100;
+                if (d.size === "2:1") { w = 180; h = 90; }   
+                if (d.size === "1:2") { w = 90;  h = 180; }  
+                
+                const x = -w / 2;
+                const y = -h / 2;
+
+                el.append("rect")
+                    .attr("x", x).attr("y", y)
+                    .attr("width", w).attr("height", h);
+
+                el.append("image")
+                    .attr("href", d.img)
+                    .attr("x", x).attr("y", y)
+                    .attr("width", w).attr("height", h)
+                    .attr("preserveAspectRatio", "xMidYMid slice");
+
+                // 為圖片節點的文字加上 class: "image-node-title" 方便統一控制
+                el.append("text")
+                    .attr("class", "image-node-title")
+                    .attr("x", x)
+                    .attr("y", (h / 2) + 15)
+                    .text(d.title);
+            } else {
+                el.append("text")
+                    .attr("text-anchor", "middle")
+                    .attr("y", 5)
+                    .style("font-weight", "bold")
+                    .text(d.title);
+            }
+        });
+
+        node.on("mouseenter", function(event, d) {
+            link.classed("highlighted", l => l.source.id === d.id || l.target.id === d.id);
+        }).on("mouseleave", function() {
+            link.classed("highlighted", false);
+        }).on("click", function(event, d) {
+            if (!d.isTag) {
+                const projectKey = d.project || d.id.split('_')[0]; 
+                if (projectPages[projectKey]) {
+                    openOverlay(projectKey);
+                }
+            }
+        });
+
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+            node
+                .attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x; d.fy = d.y;
+        }
+        function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null; d.fy = null;
+        }
+        window.addEventListener('resize', () => {
+            simulation.force("center", d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2));
+            simulation.alpha(0.3).restart();
+        });
+
+        // ------------------------------------------------------------
+        // ⌨️ 快捷鍵控制：按鍵盤上的 'T' 鍵，即可開關顯示圖片標題
+        // ------------------------------------------------------------
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 't' || e.key === 'T') {
+                SHOW_IMAGE_TITLES = !SHOW_IMAGE_TITLES;
+                svg.classed("hide-image-titles", !SHOW_IMAGE_TITLES);
+            }
+        });
+
+        // ============================================================
+        // 【獨立專案內頁資料庫】
+        // ============================================================
+        const projectPages = {
+            "PROJECT_A": {
+                title: "Gravel pit",
+                photos: [
+                    "images/project_a_01.jpg",
+                    "images/project_a_02.jpg"
+                ],
+                drawings: [
+                    "images/project_a_drawing_01.jpg",
+                    "images/project_a_drawing_02.jpg"
+                ]
+            },
+            "PROJECT_B": {
+                title: "Into the whimsical fields",
+                photos: [
+                    "images/project_b_01.jpg",
+                    "images/project_b_02.jpg",
+                    "images/project_b_03.jpg",
+                    "images/project_b_04.jpg",
+                    "images/project_b_05.jpg",
+                    "images/project_b_06.jpg",
+                    "images/project_b_07.jpg",
+                    "images/project_b_08.jpg",
+                    "images/project_b_09.jpg"
+                ],
+                drawings: [
+                    "images/project_b_drawing_01.jpg",
+                    "images/project_b_drawing_02.jpg",
+                    "images/project_b_drawing_03.jpg",
+                    "images/project_b_drawing_04.jpg"
+                ]
+            },
+            "PROJECT_C": {
+                title: "Reyhanlı",
+                photos: [
+                    "images/project_c_01.jpg",
+                    "images/project_c_02.jpg",
+                    "images/project_c_03.jpg",
+                    "images/project_c_04.jpg"
+                ],
+                drawings: ["images/project_c_drawing_01.jpg"]
+            },
+            "PROJECT_D": {
+                title: "Leaning Without Origin",
+                photos: [ 
+                    "images/project_d_01.jpg",
+                    "images/project_d_02.jpg",
+                    "images/project_d_03.jpg",
+                    "images/project_d_04.jpg",
+                    "images/project_d_05.jpg",
+                    "images/project_d_06.jpg"
+                ],
+                drawings: [
+                    "images/project_d_drawing_02.jpg",
+                    "images/project_d_drawing_03.jpg"
+                ]
+            },
+            "PROJECT_E": {
+                title: "PROJECT E",
+                photos: ["images/project_e_01.jpg"],
+                drawings: ["images/project_e_drawing_01.jpg"]
+            },
+            "PROJECT_F": {
+                title: "PROJECT F",
+                photos: ["images/project_f_01.jpg"],
+                drawings: ["images/project_f_drawing_01.jpg"]
+            },
+            "PROJECT_G": {
+                title: "PROJECT G",
+                photos: ["images/project_g_01.jpg"],
+                drawings: ["images/project_g_drawing_01.jpg"]
+            }
+        };
+
+        let currentProjectKey = "";
+        let activePhotoIndex = 0;   
+        let activeDrawingIndex = 0; 
+
+        function openOverlay(key) {
+            currentProjectKey = key;
+            activePhotoIndex = 0;   
+            activeDrawingIndex = 0; 
+            
+            const project = projectPages[key];
+            const displayTitle = (project && project.title) ? project.title : `PROJECT_${key}`;
+            document.getElementById('text-top-left').innerText = displayTitle;
+            
+            renderOverlay(); 
+            document.getElementById('overlay').style.display = 'flex';
+        }
+
+        function renderOverlay() {
+            const project = projectPages[currentProjectKey];
+            if (!project) return;
+
+            if (project.photos && project.photos.length > 0) {
+                document.getElementById('current-photo').src = project.photos[activePhotoIndex];
+                document.getElementById('text-bottom-left').innerText = `PHOTO ${activePhotoIndex + 1} / ${project.photos.length}`;
+            } else {
+                document.getElementById('current-photo').src = "";
+                document.getElementById('text-bottom-left').innerText = "PHOTO 0 / 0";
+            }
+
+            if (project.drawings && project.drawings.length > 0) {
+                document.getElementById('current-drawing').src = project.drawings[activeDrawingIndex];
+                document.getElementById('text-bottom-right').innerText = `DRAWING ${activeDrawingIndex + 1} / ${project.drawings.length}`;
+            } else {
+                document.getElementById('current-drawing').src = "";
+                document.getElementById('text-bottom-right').innerText = "DRAWING 0 / 0";
+            }
+        }
+
+        function nextPhoto() {
+            const project = projectPages[currentProjectKey];
+            if (!project || !project.photos || project.photos.length <= 1) return;
+            activePhotoIndex = (activePhotoIndex + 1) % project.photos.length;
+            renderOverlay();
+        }
+
+        function nextDrawing() {
+            const project = projectPages[currentProjectKey];
+            if (!project || !project.drawings || project.drawings.length <= 1) return;
+            activeDrawingIndex = (activeDrawingIndex + 1) % project.drawings.length;
+            renderOverlay();
+        }
+
+        function closeOverlay() {
+            document.getElementById('overlay').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
