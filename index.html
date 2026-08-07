@@ -38,12 +38,10 @@
         }
         .link.highlighted { opacity: 1; stroke-width: 1.2px; }
 
-        .node { cursor: pointer; will-change: transform; }
+        .node { cursor: pointer; }
         .node image { 
             filter: grayscale(100%) contrast(110%); 
             transition: filter 0.2s ease; 
-            will-change: filter;
-            transform: translateZ(0);
         }
         .node:hover image { filter: grayscale(0%) contrast(100%); }
         .node rect { fill: #f7f7f7; stroke: none; }
@@ -141,17 +139,8 @@
     </script>
 
     <script>
-        // ============================================================
-        // ⚙️ 全域設定開關
-        // ============================================================
-        // true  = 預設顯示圖片下方名稱 (方便調整)
-        // false = 預設隱藏圖片下方名稱 (展示模式)
         let SHOW_IMAGE_TITLES = true; 
 
-
-        // ==========================================
-        // 【主頁面節點資料庫】
-        // ==========================================
         const data = {
             nodes: [
                 { id: "T_OBJECT", title: "OBJECT", isTag: true },
@@ -221,7 +210,6 @@
             ]
         };
 
-        // 智能防呆
         const nodeIds = new Set(data.nodes.map(n => n.id));
         const errorBox = document.getElementById('debug-box');
         let hasDataError = false;
@@ -244,15 +232,11 @@
             throw new Error("D3 為了防止畫面崩潰，已由防呆機制攔截並暫停服務。");
         }
 
-        // ==========================================
-        // D3 渲染核心
-        // ==========================================
         const svg = d3.select("#archive-canvas");
         const width = window.innerWidth;
         const height = window.innerHeight;
         const g = svg.append("g");
 
-        // 如果預設隱藏，初始化加入 CSS Class
         if (!SHOW_IMAGE_TITLES) {
             svg.classed("hide-image-titles", true);
         }
@@ -262,6 +246,7 @@
             .on("zoom", (event) => { g.attr("transform", event.transform); }));
 
         const simulation = d3.forceSimulation(data.nodes)
+            .alphaDecay(0.05) // 加快動畫收斂速度，降低 CPU 負擔
             .force("link", d3.forceLink(data.links).id(d => d.id).distance(150))
             .force("charge", d3.forceManyBody().strength(-600))
             .force("center", d3.forceCenter(width / 2, height / 2))
@@ -305,9 +290,9 @@
                     .attr("href", d.img)
                     .attr("x", x).attr("y", y)
                     .attr("width", w).attr("height", h)
-                    .attr("preserveAspectRatio", "xMidYMid slice");
+                    .attr("preserveAspectRatio", "xMidYMid slice")
+                    .attr("decoding", "async"); // 異步解碼圖檔，提升渲染流暢度
 
-                // 為圖片節點的文字加上 class: "image-node-title" 方便統一控制
                 el.append("text")
                     .attr("class", "image-node-title")
                     .attr("x", x)
@@ -357,9 +342,6 @@
             simulation.alpha(0.3).restart();
         });
 
-        // ------------------------------------------------------------
-        // ⌨️ 快捷鍵控制：按鍵盤上的 'T' 鍵，即可開關顯示圖片標題
-        // ------------------------------------------------------------
         window.addEventListener('keydown', (e) => {
             if (e.key === 't' || e.key === 'T') {
                 SHOW_IMAGE_TITLES = !SHOW_IMAGE_TITLES;
@@ -367,9 +349,6 @@
             }
         });
 
-        // ============================================================
-        // 【獨立專案內頁資料庫】
-        // ============================================================
         const projectPages = {
             "PROJECT_A": {
                 title: "Gravel pit",
