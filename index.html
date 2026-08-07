@@ -47,17 +47,45 @@
         .node rect { fill: #f7f7f7; stroke: none; }
         .node text { font-size: 10px; fill: #000000; letter-spacing: 0.02em; pointer-events: none; }
 
-        /* 隱藏標題的 CSS 樣式 */
         .hide-image-titles .image-node-title {
             display: none !important;
         }
 
+        /* ----------------------------------------------------
+           內頁 OVERLAY 獨立架構
+        ---------------------------------------------------- */
         #overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background-color: #ffffff; z-index: 10000;
             display: none; 
+            flex-direction: column;
+            overflow-y: auto; 
+            overflow-x: hidden;
+            /* 已移除 scroll-behavior: smooth，避免開啟時產生滾動動畫 */
+        }
+
+        /* 固定於畫面上方的頂部標題與關閉按鈕 */
+        .overlay-text {
+            position: fixed; font-size: 11px; letter-spacing: 0.08em; 
+            color: #000000; z-index: 10005; pointer-events: none;
+            text-transform: uppercase; font-family: monospace;
+        }
+        
+        #text-top-left     { top: 24px; left: 24px; font-weight: bold; }
+        #text-top-right    { 
+            top: 20px; right: 24px; pointer-events: auto; 
+            background: none; border: none; font-size: 14px; cursor: pointer; 
+        }
+
+        /* 第一畫面：左右對照滿版視覺 */
+        .overlay-hero {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            min-height: 100vh;
+            display: flex;
             flex-direction: row;
-            overflow: hidden;
+            flex-shrink: 0;
         }
 
         .split-side {
@@ -77,25 +105,65 @@
             filter: none;
             transition: filter 0.3s ease;
         }
-        .split-side:hover img { filter: none; }
 
-        .overlay-text {
-            position: absolute; font-size: 11px; letter-spacing: 0.08em; 
-            color: #000000; z-index: 10005; pointer-events: none;
-            text-transform: uppercase; font-family: monospace;
+        /* 底部標籤與數量資訊 */
+        .hero-tag {
+            position: absolute; bottom: 24px; font-size: 11px; letter-spacing: 0.08em;
+            color: #000000; font-family: monospace; text-transform: uppercase;
+            pointer-events: none;
+            z-index: 10005;
         }
+        #text-bottom-left  { left: 24px; }
+        #text-bottom-right { right: 24px; }
         
-        #text-top-left     { top: 24px; left: 24px; font-weight: bold; }
-        #text-top-center   { top: 24px; left: 50%; transform: translateX(-50%); color: #666666; }
-        
-        #text-top-right    { 
-            top: 20px; right: 24px; pointer-events: auto; 
-            background: none; border: none; font-size: 14px; cursor: pointer; 
+        #scroll-hint {
+            left: 50%; transform: translateX(-50%);
+            color: rgba(0,0,0,0.45); font-weight: 500;
+            letter-spacing: 0.12em;
+            animation: bounceHint 2s infinite;
+            transition: opacity 0.2s linear;
+            will-change: opacity;
         }
-        
-        #text-bottom-left  { bottom: 24px; left: 24px; }
-        #text-bottom-center{ bottom: 24px; left: 50%; transform: translateX(-50%); }
-        #text-bottom-right { bottom: 24px; right: 24px; }
+
+        @keyframes bounceHint {
+            0%, 100% { transform: translate(-50%, 0); }
+            50% { transform: translate(-50%, 6px); }
+        }
+
+        /* 第二區塊：向下滾動後出現的專案詳細 INFO */
+        .overlay-info-section {
+            width: 100vw;
+            min-height: 60vh;
+            background-color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 100px 40px;
+            box-sizing: border-box;
+            border: none;
+            flex-shrink: 0;
+        }
+
+        .info-container {
+            max-width: 650px;
+            width: 100%;
+            font-family: monospace, -apple-system, sans-serif;
+            font-size: 12px;
+            line-height: 2.0;
+            color: #111111;
+            letter-spacing: 0.05em;
+            white-space: pre-wrap;
+            text-align: left;
+        }
+
+        .info-header-label {
+            font-size: 10px;
+            color: rgba(0,0,0,0.35);
+            letter-spacing: 0.15em;
+            margin-bottom: 24px;
+            text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
@@ -107,20 +175,31 @@
     <div id="debug-box"></div>
 
     <div id="overlay">
+        <!-- 固定於頂部的導覽資訊 -->
         <div id="text-top-left" class="overlay-text">—</div>
-        <div id="text-top-center" class="overlay-text">OFFICE ARCHIVE</div>
         <button id="text-top-right" class="overlay-text" onclick="closeOverlay()">✕</button>
         
-        <div id="text-bottom-left" class="overlay-text">PHOTO 0/0</div>
-        <div id="text-bottom-center" class="overlay-text">↓ INFO</div>
-        <div id="text-bottom-right" class="overlay-text">DRAWING 0/0</div>
+        <!-- 第一畫面：滿版對照區 -->
+        <div class="overlay-hero">
+            <div id="text-bottom-left" class="hero-tag">PHOTO 0/0</div>
+            <div id="scroll-hint" class="hero-tag">↓ INFO</div>
+            <div id="text-bottom-right" class="hero-tag">DRAWING 0/0</div>
 
-        <div class="split-side left-side" onclick="nextPhoto()">
-            <img id="current-photo" src="" alt="Project Photograph">
+            <div class="split-side left-side" onclick="nextPhoto()">
+                <img id="current-photo" src="" alt="Project Photograph">
+            </div>
+            
+            <div class="split-side right-side" onclick="nextDrawing()">
+                <img id="current-drawing" src="" alt="Architectural Drawing">
+            </div>
         </div>
-        
-        <div class="split-side right-side" onclick="nextDrawing()">
-            <img id="current-drawing" src="" alt="Architectural Drawing">
+
+        <!-- 第二畫面：向下滾動後呈現的專案 INFO 說明區 -->
+        <div class="overlay-info-section">
+            <div class="info-container">
+                <div class="info-header-label">[ PROJECT INFO ]</div>
+                <div id="info-content-text"></div>
+            </div>
         </div>
     </div>
 
@@ -246,7 +325,7 @@
             .on("zoom", (event) => { g.attr("transform", event.transform); }));
 
         const simulation = d3.forceSimulation(data.nodes)
-            .alphaDecay(0.05) // 加快動畫收斂速度，降低 CPU 負擔
+            .alphaDecay(0.05)
             .force("link", d3.forceLink(data.links).id(d => d.id).distance(150))
             .force("charge", d3.forceManyBody().strength(-600))
             .force("center", d3.forceCenter(width / 2, height / 2))
@@ -291,7 +370,7 @@
                     .attr("x", x).attr("y", y)
                     .attr("width", w).attr("height", h)
                     .attr("preserveAspectRatio", "xMidYMid slice")
-                    .attr("decoding", "async"); // 異步解碼圖檔，提升渲染流暢度
+                    .attr("decoding", "async");
 
                 el.append("text")
                     .attr("class", "image-node-title")
@@ -349,9 +428,24 @@
             }
         });
 
+        // 滾動監聽：往下滾動時 `↓ INFO` 淡出
+        document.getElementById('overlay').addEventListener('scroll', function() {
+            const hint = document.getElementById('scroll-hint');
+            if (hint) {
+                const opacity = Math.max(0, 1 - this.scrollTop / 150);
+                hint.style.opacity = opacity;
+            }
+        });
+
+        // ============================================================
+        // 【獨立專案內頁資料庫】
+        // ============================================================
         const projectPages = {
             "PROJECT_A": {
                 title: "Gravel pit",
+                info: "2024 / LANDSCAPE ARCHITECTURE\n\nThis project explores the spatial dynamics of gravel extraction sites through systematic landscape analysis and speculative design interventions.",
+                photoTag: "PLANTS",
+                drawingTag: "STOCKPILE",
                 photos: [
                     "images/project_a_01.jpg",
                     "images/project_a_02.jpg"
@@ -363,6 +457,9 @@
             },
             "PROJECT_B": {
                 title: "Into the whimsical fields",
+                info: "2023 / INSTALLATION DESIGN\n\nAn architectural installation situated within rural fields, reconsidering the scale of bodily movement and natural geography.",
+                photoTag: "SITE PHOTO",
+                drawingTag: "SKETCH",
                 photos: [
                     "images/project_b_01.jpg",
                     "images/project_b_02.jpg",
@@ -383,6 +480,7 @@
             },
             "PROJECT_C": {
                 title: "Reyhanlı",
+                info: "2022 / COMMUNITY CENTER",
                 photos: [
                     "images/project_c_01.jpg",
                     "images/project_c_02.jpg",
@@ -393,6 +491,7 @@
             },
             "PROJECT_D": {
                 title: "Leaning Without Origin",
+                info: "2024 / EXHIBITION DESIGN",
                 photos: [ 
                     "images/project_d_01.jpg",
                     "images/project_d_02.jpg",
@@ -408,16 +507,19 @@
             },
             "PROJECT_E": {
                 title: "PROJECT E",
+                info: "PROJECT E DETAILS",
                 photos: ["images/project_e_01.jpg"],
                 drawings: ["images/project_e_drawing_01.jpg"]
             },
             "PROJECT_F": {
                 title: "PROJECT F",
+                info: "PROJECT F DETAILS",
                 photos: ["images/project_f_01.jpg"],
                 drawings: ["images/project_f_drawing_01.jpg"]
             },
             "PROJECT_G": {
                 title: "PROJECT G",
+                info: "PROJECT G DETAILS",
                 photos: ["images/project_g_01.jpg"],
                 drawings: ["images/project_g_drawing_01.jpg"]
             }
@@ -432,32 +534,45 @@
             activePhotoIndex = 0;   
             activeDrawingIndex = 0; 
             
+            const overlayEl = document.getElementById('overlay');
             const project = projectPages[key];
             const displayTitle = (project && project.title) ? project.title : `PROJECT_${key}`;
             document.getElementById('text-top-left').innerText = displayTitle;
             
             renderOverlay(); 
-            document.getElementById('overlay').style.display = 'flex';
+
+            // 強制立即將滾動高度歸零，確保開啟時一定在頂端
+            overlayEl.scrollTop = 0;
+            overlayEl.style.display = 'flex';
+            overlayEl.scrollTop = 0;
+
+            // 復原 ↓ INFO 提示的透明度
+            const hint = document.getElementById('scroll-hint');
+            if (hint) hint.style.opacity = '1';
         }
 
         function renderOverlay() {
             const project = projectPages[currentProjectKey];
             if (!project) return;
 
+            document.getElementById('info-content-text').innerText = project.info || "No description available.";
+
+            const photoLabel = project.photoTag || "PHOTO";
             if (project.photos && project.photos.length > 0) {
                 document.getElementById('current-photo').src = project.photos[activePhotoIndex];
-                document.getElementById('text-bottom-left').innerText = `PHOTO ${activePhotoIndex + 1} / ${project.photos.length}`;
+                document.getElementById('text-bottom-left').innerText = `${photoLabel} ${activePhotoIndex + 1} / ${project.photos.length}`;
             } else {
                 document.getElementById('current-photo').src = "";
-                document.getElementById('text-bottom-left').innerText = "PHOTO 0 / 0";
+                document.getElementById('text-bottom-left').innerText = `${photoLabel} 0 / 0`;
             }
 
+            const drawingLabel = project.drawingTag || "DRAWING";
             if (project.drawings && project.drawings.length > 0) {
                 document.getElementById('current-drawing').src = project.drawings[activeDrawingIndex];
-                document.getElementById('text-bottom-right').innerText = `DRAWING ${activeDrawingIndex + 1} / ${project.drawings.length}`;
+                document.getElementById('text-bottom-right').innerText = `${drawingLabel} ${activeDrawingIndex + 1} / ${project.drawings.length}`;
             } else {
                 document.getElementById('current-drawing').src = "";
-                document.getElementById('text-bottom-right').innerText = "DRAWING 0 / 0";
+                document.getElementById('text-bottom-right').innerText = `${drawingLabel} 0 / 0`;
             }
         }
 
@@ -476,7 +591,11 @@
         }
 
         function closeOverlay() {
-            document.getElementById('overlay').style.display = 'none';
+            const overlayEl = document.getElementById('overlay');
+            overlayEl.style.display = 'none';
+            overlayEl.scrollTop = 0;
+            const hint = document.getElementById('scroll-hint');
+            if (hint) hint.style.opacity = '1';
         }
     </script>
 </body>
