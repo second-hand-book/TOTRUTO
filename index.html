@@ -33,7 +33,7 @@
         #archive-canvas:active { cursor: grabbing; }
 
         .link {
-            stroke: #000000; stroke-width: 0.5px; opacity: 0.04; 
+            stroke: #000000; stroke-width: 0.5px; opacity: 0.05; 
             transition: opacity 0.3s ease;
         }
         .link.highlighted { opacity: 1; stroke-width: 1.2px; }
@@ -61,7 +61,6 @@
             flex-direction: column;
             overflow-y: auto; 
             overflow-x: hidden;
-            /* 已移除 scroll-behavior: smooth，避免開啟時產生滾動動畫 */
         }
 
         /* 固定於畫面上方的頂部標題與關閉按鈕 */
@@ -71,8 +70,12 @@
             text-transform: uppercase; font-family: monospace;
         }
         
-        #text-top-left     { top: 24px; left: 24px; font-weight: bold; }
-        #text-top-right    { 
+        #text-top-left { 
+            top: 24px; left: 24px; font-weight: bold; 
+            transition: opacity 0.2s linear;
+            will-change: opacity;
+        }
+        #text-top-right { 
             top: 20px; right: 24px; pointer-events: auto; 
             background: none; border: none; font-size: 14px; cursor: pointer; 
         }
@@ -103,7 +106,6 @@
             object-fit: contain;
             display: block;
             filter: none;
-            transition: filter 0.3s ease;
         }
 
         /* 底部標籤與數量資訊 */
@@ -149,20 +151,32 @@
             max-width: 650px;
             width: 100%;
             font-family: monospace, -apple-system, sans-serif;
+            text-align: left;
+        }
+
+        .info-project-title {
+            font-size: 14px;
+            font-weight: bold;
+            letter-spacing: 0.08em;
+            color: #000000;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .info-project-meta {
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            color: rgba(0, 0, 0, 0.45);
+            text-transform: uppercase;
+            margin-bottom: 28px;
+        }
+
+        .info-project-desc {
             font-size: 12px;
             line-height: 2.0;
             color: #111111;
             letter-spacing: 0.05em;
             white-space: pre-wrap;
-            text-align: left;
-        }
-
-        .info-header-label {
-            font-size: 10px;
-            color: rgba(0,0,0,0.35);
-            letter-spacing: 0.15em;
-            margin-bottom: 24px;
-            text-transform: uppercase;
         }
     </style>
 </head>
@@ -186,19 +200,20 @@
             <div id="text-bottom-right" class="hero-tag">DRAWING 0/0</div>
 
             <div class="split-side left-side" onclick="nextPhoto()">
-                <img id="current-photo" src="" alt="Project Photograph">
+                <img id="current-photo" src="" alt="Project Photograph" decoding="async">
             </div>
             
             <div class="split-side right-side" onclick="nextDrawing()">
-                <img id="current-drawing" src="" alt="Architectural Drawing">
+                <img id="current-drawing" src="" alt="Architectural Drawing" decoding="async">
             </div>
         </div>
 
         <!-- 第二畫面：向下滾動後呈現的專案 INFO 說明區 -->
         <div class="overlay-info-section">
             <div class="info-container">
-                <div class="info-header-label">[ PROJECT INFO ]</div>
-                <div id="info-content-text"></div>
+                <div id="info-title" class="info-project-title"></div>
+                <div id="info-meta" class="info-project-meta"></div>
+                <div id="info-content-text" class="info-project-desc"></div>
             </div>
         </div>
     </div>
@@ -218,17 +233,14 @@
     </script>
 
     <script>
-        let SHOW_IMAGE_TITLES = true; 
+        let SHOW_IMAGE_TITLES = false; 
 
         const data = {
             nodes: [
                 { id: "T_OBJECT", title: "OBJECT", isTag: true },
                 { id: "T_LANDSCAPE", title: "LANDSCAPE", isTag: true },
                 { id: "T_TYPOLOGY", title: "TYPOLOGY", isTag: true },
-                { id: "T_SCALE", title: "SCALE", isTag: true },
                 { id: "T_JOURNEY", title: "JOURNEY", isTag: true },
-                { id: "T_VULNERABILITY", title: "VULNERABILITY", isTag: true },
-                { id: "T_DRAWING", title: "DRAWING", isTag: true },
 
                 { id: "A_01", title: "PROJECT_A // 01", img: "images/project_a_01.jpg", size: "1:2", project: "PROJECT_A" },
                 { id: "A_02", title: "PROJECT_A // 02", img: "images/project_a_drawing_02.jpg", size: "2:1", project: "PROJECT_A" },
@@ -248,12 +260,13 @@
                 { id: "D_04", title: "PROJECT_D // 04", img: "images/project_d_drawing_01.jpg", size: "2:1", project: "PROJECT_D" },
 
                 { id: "E_01", title: "PROJECT_E // 01", img: "images/project_e_01.jpg", size: "1:1", project: "PROJECT_E" },
-                { id: "E_02", title: "PROJECT_E // 02", img: "images/project_e_02.jpg", size: "1:1", project: "PROJECT_E" },
-                { id: "E_03", title: "PROJECT_E // 03", img: "images/project_e_03.jpg", size: "1:1", project: "PROJECT_E" },
+                { id: "E_02", title: "PROJECT_E // 02", img: "images/project_e_drawing_01.jpg", size: "1:1", project: "PROJECT_E" },
+                { id: "E_03", title: "PROJECT_E // 03", img: "images/project_e_drawing_02.jpg", size: "1:1", project: "PROJECT_E" },
+                { id: "E_04", title: "PROJECT_E // 04", img: "images/project_e_drawing_07.jpg", size: "2:1", project: "PROJECT_E" },
 
-                { id: "F_01", title: "PROJECT_F // 01", img: "images/project_f_01.jpg", size: "1:1", project: "PROJECT_F" },
-                { id: "F_02", title: "PROJECT_F // 02", img: "images/project_f_02.jpg", size: "1:1", project: "PROJECT_F" },
-                { id: "F_03", title: "PROJECT_F // 03", img: "images/project_f_03.jpg", size: "2:1", project: "PROJECT_F" },
+                { id: "F_01", title: "PROJECT_F // 01", img: "images/project_f_02.jpg", size: "1:1", project: "PROJECT_F" },
+                { id: "F_02", title: "PROJECT_F // 02", img: "images/project_f_20.jpg", size: "1:1", project: "PROJECT_F" },
+                { id: "F_03", title: "PROJECT_F // 03", img: "images/project_f_drawing_30.jpg", size: "1:1", project: "PROJECT_F" },
 
                 { id: "G_01", title: "PROJECT_G // 01", img: "images/project_g_01.jpg", size: "1:2", project: "PROJECT_G" },
                 { id: "G_02", title: "PROJECT_G // 02", img: "images/project_g_02.jpg", size: "1:1", project: "PROJECT_G" }
@@ -270,20 +283,17 @@
                 { source: "D_03", target: "D_04" },
                 { source: "E_01", target: "E_02" },
                 { source: "E_02", target: "E_03" },
+                { source: "E_03", target: "E_04" },
                 { source: "F_01", target: "F_02" },
                 { source: "F_02", target: "F_03" },
                 { source: "G_01", target: "G_02" },
                 { source: "B_01", target: "T_OBJECT" },
                 { source: "D_01", target: "T_OBJECT" },
                 { source: "G_01", target: "T_OBJECT" },
-                { source: "D_04", target: "T_DRAWING" },
-                { source: "C_04", target: "T_DRAWING" },
-                { source: "E_01", target: "T_DRAWING" },
                 { source: "C_01", target: "T_JOURNEY" },
                 { source: "A_01", target: "T_JOURNEY" },
                 { source: "F_01", target: "T_TYPOLOGY" },
                 { source: "E_01", target: "T_TYPOLOGY" },
-                { source: "C_03", target: "T_VULNERABILITY" },
                 { source: "A_01", target: "T_LANDSCAPE" },
                 { source: "B_01", target: "T_LANDSCAPE" }
             ]
@@ -324,16 +334,52 @@
             .scaleExtent([0.1, 3])
             .on("zoom", (event) => { g.attr("transform", event.transform); }));
 
+        // 1. 【優雅開場修正】先給每個節點一個預先分散的圓周位置，避免初次重疊
+        const radius = Math.min(width, height) * 0.3;
+        data.nodes.forEach((d, i) => {
+            const angle = (i / data.nodes.length) * Math.PI * 2;
+            d.x = width / 2 + Math.cos(angle) * radius + (Math.random() - 0.5) * 50;
+            d.y = height / 2 + Math.sin(angle) * radius + (Math.random() - 0.5) * 50;
+        });
+
+        // 2. 建立力學模擬（保持原有的放大幅度）
         const simulation = d3.forceSimulation(data.nodes)
-            .alphaDecay(0.05)
-            .force("link", d3.forceLink(data.links).id(d => d.id).distance(150))
+            .alphaDecay(0.01)
+            .alphaTarget(0.02)
+            .velocityDecay(0.35)
+            .force("link", d3.forceLink(data.links).id(d => d.id).distance(160).strength(0.2))
             .force("charge", d3.forceManyBody().strength(-600))
-            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("x", d3.forceX(width / 2).strength(0.018))
+            .force("y", d3.forceY(height / 2).strength(0.018))
             .force("collision", d3.forceCollide().radius(d => {
                 if (d.isTag) return 60;
-                if (d.size === "1:2" || d.size === "2:1") return 110; 
-                return 75;
-            }));
+                if (d.size === "1:2" || d.size === "2:1") return 110;
+                return 85;
+            }))
+            .force("orbit", () => {
+                const time = Date.now() * 0.0003;
+                const cx = width / 2;
+                const cy = height / 2;
+
+                data.nodes.forEach((d, i) => {
+                    const dx = d.x - cx;
+                    const dy = d.y - cy;
+                    const angle = Math.atan2(dy, dx);
+                    const orbitDir = (i % 2 === 0) ? 1 : -1;
+                    const speed = 0.18 * Math.sin(time + i * 0.9);
+
+                    d.vx += -Math.sin(angle) * speed * orbitDir;
+                    d.vy += Math.cos(angle) * speed * orbitDir;
+
+                    d.vx += Math.sin(time * 1.2 + i * 1.3) * 0.08;
+                    d.vy += Math.cos(time * 1.1 + i * 1.7) * 0.08;
+                });
+            });
+
+        // 3. 【優雅開場修正】讓物理引擎在畫面繪製前先預跑 60 次，避開撞擊噴飛階段
+        for (let i = 0; i < 60; ++i) {
+            simulation.tick();
+        }
 
         const link = g.append("g")
             .selectAll("line")
@@ -413,11 +459,12 @@
         }
         function dragged(event, d) { d.fx = event.x; d.fy = event.y; }
         function dragended(event, d) {
-            if (!event.active) simulation.alphaTarget(0);
+            if (!event.active) simulation.alphaTarget(0.02);
             d.fx = null; d.fy = null;
         }
         window.addEventListener('resize', () => {
-            simulation.force("center", d3.forceCenter(window.innerWidth / 2, window.innerHeight / 2));
+            simulation.force("x", d3.forceX(window.innerWidth / 2).strength(0.018));
+            simulation.force("y", d3.forceY(window.innerHeight / 2).strength(0.018));
             simulation.alpha(0.3).restart();
         });
 
@@ -428,13 +475,14 @@
             }
         });
 
-        // 滾動監聽：往下滾動時 `↓ INFO` 淡出
+        // 滾動監聽：往下滾動時 `↓ INFO` 與左上角「作品名稱」同步淡出
         document.getElementById('overlay').addEventListener('scroll', function() {
             const hint = document.getElementById('scroll-hint');
-            if (hint) {
-                const opacity = Math.max(0, 1 - this.scrollTop / 150);
-                hint.style.opacity = opacity;
-            }
+            const topLeft = document.getElementById('text-top-left');
+            const opacity = Math.max(0, 1 - this.scrollTop / 150);
+            
+            if (hint) hint.style.opacity = opacity;
+            if (topLeft) topLeft.style.opacity = opacity;
         });
 
         // ============================================================
@@ -458,8 +506,8 @@
             "PROJECT_B": {
                 title: "Into the whimsical fields",
                 info: "2023 / INSTALLATION DESIGN\n\nAn architectural installation situated within rural fields, reconsidering the scale of bodily movement and natural geography.",
-                photoTag: "SITE PHOTO",
-                drawingTag: "SKETCH",
+                photoTag: "IMAGE",
+                drawingTag: "DRAWING",
                 photos: [
                     "images/project_b_01.jpg",
                     "images/project_b_02.jpg",
@@ -475,7 +523,10 @@
                     "images/project_b_drawing_01.jpg",
                     "images/project_b_drawing_02.jpg",
                     "images/project_b_drawing_03.jpg",
-                    "images/project_b_drawing_04.jpg"
+                    "images/project_b_drawing_04.jpg",
+                    "images/project_b_drawing_05.jpg",
+                    "images/project_b_drawing_06.jpg",
+                    "images/project_b_drawing_07.jpg"
                 ]
             },
             "PROJECT_C": {
@@ -506,24 +557,142 @@
                 ]
             },
             "PROJECT_E": {
-                title: "PROJECT E",
+                title: "Entrance",
                 info: "PROJECT E DETAILS",
-                photos: ["images/project_e_01.jpg"],
-                drawings: ["images/project_e_drawing_01.jpg"]
+                photoTag: "IMAGE",
+                drawingTag: "DRAWING",
+                photos: [ 
+                    "images/project_e_01.jpg",
+                    "images/project_e_02.jpg",
+                    "images/project_e_03.jpg",
+                    "images/project_e_04.jpg",
+                    "images/project_e_05.jpg"
+                ],
+                drawings: [
+                    "images/project_e_drawing_01.jpg",
+                    "images/project_e_drawing_02.jpg",
+                    "images/project_e_drawing_03.jpg",
+                    "images/project_e_drawing_04.jpg",
+                    "images/project_e_drawing_05.jpg",
+                    "images/project_e_drawing_06.jpg",
+                    "images/project_e_drawing_07.jpg"
+                ]
             },
             "PROJECT_F": {
-                title: "PROJECT F",
+                title: "Typological Research on In-between Spaces in Rural Taiwan",
                 info: "PROJECT F DETAILS",
-                photos: ["images/project_f_01.jpg"],
-                drawings: ["images/project_f_drawing_01.jpg"]
+                photos: [ 
+                    "images/project_f_01.jpg",
+                    "images/project_f_02.jpg",
+                    "images/project_f_03.jpg",
+                    "images/project_f_04.jpg",
+                    "images/project_f_05.jpg",
+                    "images/project_f_06.jpg",
+                    "images/project_f_07.jpg",
+                    "images/project_f_08.jpg",
+                    "images/project_f_09.jpg",
+                    "images/project_f_11.jpg",
+                    "images/project_f_12.jpg",
+                    "images/project_f_13.jpg",
+                    "images/project_f_14.jpg",
+                    "images/project_f_15.jpg",
+                    "images/project_f_16.jpg",
+                    "images/project_f_17.jpg",
+                    "images/project_f_18.jpg",
+                    "images/project_f_19.jpg",
+                    "images/project_f_20.jpg",
+                    "images/project_f_21.jpg"
+                ],
+                drawings: [
+                    "images/project_f_drawing_01.jpg",
+                    "images/project_f_drawing_02.jpg",
+                    "images/project_f_drawing_03.jpg",
+                    "images/project_f_drawing_04.jpg",
+                    "images/project_f_drawing_05.jpg",
+                    "images/project_f_drawing_06.jpg",
+                    "images/project_f_drawing_07.jpg",
+                    "images/project_f_drawing_08.jpg",
+                    "images/project_f_drawing_09.jpg",
+                    "images/project_f_drawing_10.jpg",
+                    "images/project_f_drawing_11.jpg",
+                    "images/project_f_drawing_12.jpg",
+                    "images/project_f_drawing_13.jpg",
+                    "images/project_f_drawing_14.jpg",
+                    "images/project_f_drawing_15.jpg",
+                    "images/project_f_drawing_16.jpg",
+                    "images/project_f_drawing_17.jpg",
+                    "images/project_f_drawing_18.jpg",
+                    "images/project_f_drawing_19.jpg",
+                    "images/project_f_drawing_20.jpg",
+                    "images/project_f_drawing_21.jpg",
+                    "images/project_f_drawing_22.jpg",
+                    "images/project_f_drawing_23.jpg",
+                    "images/project_f_drawing_24.jpg",
+                    "images/project_f_drawing_25.jpg",
+                    "images/project_f_drawing_26.jpg",
+                    "images/project_f_drawing_27.jpg",
+                    "images/project_f_drawing_28.jpg",
+                    "images/project_f_drawing_29.jpg",
+                    "images/project_f_drawing_30.jpg",
+                    "images/project_f_drawing_31.jpg",
+                    "images/project_f_drawing_32.jpg"
+                ]
             },
             "PROJECT_G": {
                 title: "PROJECT G",
                 info: "PROJECT G DETAILS",
-                photos: ["images/project_g_01.jpg"],
-                drawings: ["images/project_g_drawing_01.jpg"]
+                photoTag: "PHOTO",
+                drawingTag: "PROCESS",
+                photos: [ 
+                    "images/project_g_01.jpg",
+                    "images/project_g_02.jpg",
+                    "images/project_g_03.jpg",
+                    "images/project_g_04.jpg",
+                    "images/project_g_05.jpg",
+                    "images/project_g_06.jpg"
+                ],
+                drawings: [
+                    "images/project_g_drawing_01.jpg",
+                    "images/project_g_drawing_02.jpg",
+                    "images/project_g_drawing_03.jpg",
+                    "images/project_g_drawing_04.jpg",
+                    "images/project_g_drawing_05.jpg",
+                    "images/project_g_drawing_06.jpg",
+                    "images/project_g_drawing_07.jpg",
+                    "images/project_g_drawing_08.jpg",
+                    "images/project_g_drawing_09.jpg",
+                    "images/project_g_drawing_10.jpg",
+                    "images/project_g_drawing_11.jpg",
+                    "images/project_g_drawing_12.jpg",
+                    "images/project_g_drawing_13.jpg",
+                    "images/project_g_drawing_14.jpg",
+                    "images/project_g_drawing_15.jpg",
+                    "images/project_g_drawing_16.jpg",
+                    "images/project_g_drawing_17.jpg",
+                    "images/project_g_drawing_18.jpg",
+                    "images/project_g_drawing_19.jpg"
+                ]
             }
         };
+
+        function preloadAllProjectImages() {
+            Object.values(projectPages).forEach(proj => {
+                if (proj.photos) {
+                    proj.photos.forEach(url => {
+                        const img = new Image();
+                        img.src = url;
+                    });
+                }
+                if (proj.drawings) {
+                    proj.drawings.forEach(url => {
+                        const img = new Image();
+                        img.src = url;
+                    });
+                }
+            });
+        }
+
+        window.addEventListener('load', preloadAllProjectImages);
 
         let currentProjectKey = "";
         let activePhotoIndex = 0;   
@@ -537,16 +706,16 @@
             const overlayEl = document.getElementById('overlay');
             const project = projectPages[key];
             const displayTitle = (project && project.title) ? project.title : `PROJECT_${key}`;
+            
             document.getElementById('text-top-left').innerText = displayTitle;
+            document.getElementById('text-top-left').style.opacity = '1';
             
             renderOverlay(); 
 
-            // 強制立即將滾動高度歸零，確保開啟時一定在頂端
             overlayEl.scrollTop = 0;
             overlayEl.style.display = 'flex';
             overlayEl.scrollTop = 0;
 
-            // 復原 ↓ INFO 提示的透明度
             const hint = document.getElementById('scroll-hint');
             if (hint) hint.style.opacity = '1';
         }
@@ -555,7 +724,24 @@
             const project = projectPages[currentProjectKey];
             if (!project) return;
 
-            document.getElementById('info-content-text').innerText = project.info || "No description available.";
+            const displayTitle = (project && project.title) ? project.title : `PROJECT_${currentProjectKey}`;
+            
+            // 填入 INFO 區的三層結構：作品名稱 / 年份與類型 / 介紹
+            document.getElementById('info-title').innerText = displayTitle;
+
+            if (project.info) {
+                const parts = project.info.split('\n\n');
+                if (parts.length > 1) {
+                    document.getElementById('info-meta').innerText = parts[0];
+                    document.getElementById('info-content-text').innerText = parts.slice(1).join('\n\n');
+                } else {
+                    document.getElementById('info-meta').innerText = "";
+                    document.getElementById('info-content-text').innerText = project.info;
+                }
+            } else {
+                document.getElementById('info-meta').innerText = "";
+                document.getElementById('info-content-text').innerText = "No description available.";
+            }
 
             const photoLabel = project.photoTag || "PHOTO";
             if (project.photos && project.photos.length > 0) {
@@ -594,8 +780,12 @@
             const overlayEl = document.getElementById('overlay');
             overlayEl.style.display = 'none';
             overlayEl.scrollTop = 0;
+            
             const hint = document.getElementById('scroll-hint');
+            const topLeft = document.getElementById('text-top-left');
+            
             if (hint) hint.style.opacity = '1';
+            if (topLeft) topLeft.style.opacity = '1';
         }
     </script>
 </body>
