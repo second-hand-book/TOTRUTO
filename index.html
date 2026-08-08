@@ -63,7 +63,6 @@
             overflow-x: hidden;
         }
 
-        /* 固定於畫面上方的頂部標題與關閉按鈕 */
         .overlay-text {
             position: fixed; font-size: 11px; letter-spacing: 0.08em; 
             color: #000000; z-index: 10005; pointer-events: none;
@@ -80,7 +79,6 @@
             background: none; border: none; font-size: 14px; cursor: pointer; 
         }
 
-        /* 第一區塊：左右對照滿版視覺 */
         .overlay-hero {
             position: relative;
             width: 100vw;
@@ -101,14 +99,14 @@
         }
         .left-side { border-right: 0.5px solid rgba(0,0,0,0.1); }
 
-        .split-side img {
+        .split-side img, .overlay-crater-section img {
             max-width: 85%; max-height: 75%;
             object-fit: contain;
             display: block;
-            filter: none;
+            will-change: transform;
+            transform: translateZ(0); /* 啟用 GPU 繪製加速 */
         }
 
-        /* 底部標籤與數量資訊 */
         .hero-tag {
             position: absolute; bottom: 24px; font-size: 11px; letter-spacing: 0.08em;
             color: #000000; font-family: monospace; text-transform: uppercase;
@@ -127,7 +125,6 @@
             will-change: opacity;
         }
 
-        /* 💡 將 Crater 箭頭的位置大幅提高至 bottom: 100px */
         #crater-scroll-hint {
             position: absolute; 
             bottom: 150px; 
@@ -150,7 +147,6 @@
             50% { transform: translate(-50%, 6px); }
         }
 
-        /* 第二區塊：向下滾動後出現的專案詳細 INFO */
         .overlay-info-section {
             position: relative;
             width: 100vw;
@@ -199,7 +195,6 @@
             white-space: pre-wrap;
         }
 
-        /* 第三區塊：專屬於 PROJECT_A 的獨立 Crater 頻道 */
         .overlay-crater-section {
             position: relative;
             width: 100vw;
@@ -212,12 +207,6 @@
             flex-shrink: 0;
             cursor: pointer;
             user-select: none;
-        }
-
-        .overlay-crater-section img {
-            max-width: 85%; max-height: 75%;
-            object-fit: contain;
-            display: block;
         }
 
         .crater-tag {
@@ -240,11 +229,9 @@
     <div id="debug-box"></div>
 
     <div id="overlay">
-        <!-- 固定於頂部的導覽資訊 -->
         <div id="text-top-left" class="overlay-text">—</div>
         <button id="text-top-right" class="overlay-text" onclick="closeOverlay()">✕</button>
         
-        <!-- 第一畫面：滿版對照區 -->
         <div class="overlay-hero">
             <div id="text-bottom-left" class="hero-tag">PHOTO 0/0</div>
             <div id="scroll-hint" class="hero-tag">↓ INFO</div>
@@ -259,18 +246,15 @@
             </div>
         </div>
 
-        <!-- 第二畫面：向下滾動後呈現的專案 INFO 說明區 -->
         <div class="overlay-info-section">
             <div class="info-container">
                 <div id="info-title" class="info-project-title"></div>
                 <div id="info-meta" class="info-project-meta"></div>
                 <div id="info-content-text" class="info-project-desc"></div>
             </div>
-            <!-- 指向 Crater 频道的向下引導箭頭 -->
             <div id="crater-scroll-hint" style="display: none;">↓ CRATER</div>
         </div>
 
-        <!-- 第三畫面：專屬全版 Crater 頻道 -->
         <div id="overlay-crater-section" class="overlay-crater-section" onclick="nextCrater()">
             <img id="current-crater" src="" alt="Project Crater" decoding="async">
             <div id="text-crater-tag" class="crater-tag">CRATER 0/0</div>
@@ -531,7 +515,6 @@
             }
         });
 
-        // 多段滾動監聽：Hero (↓ INFO) 與 INFO (↓ CRATER) 的動態漸變邏輯
         document.getElementById('overlay').addEventListener('scroll', function() {
             const scrollTop = this.scrollTop;
             const vh = window.innerHeight;
@@ -540,15 +523,13 @@
             const craterHint = document.getElementById('crater-scroll-hint');
             const topLeft = document.getElementById('text-top-left');
 
-            // 1. Hero 區塊的漸變消失 (0 ~ 150px)
             const heroOpacity = Math.max(0, 1 - scrollTop / 150);
             if (hint) hint.style.opacity = heroOpacity;
             if (topLeft) topLeft.style.opacity = heroOpacity;
 
-            // 2. INFO 區塊中的 ↓ CRATER 漸變消失 (接近 INFO 底部 200px 內才開始淡出)
             if (craterHint && craterHint.style.display !== 'none') {
                 const distanceToCrater = (2 * vh) - scrollTop;
-                const craterOpacity = Math.max(0, Math.min(1, distanceToCrater / 1500));
+                const craterOpacity = Math.max(0, Math.min(1, distanceToCrater / 200));
                 craterHint.style.opacity = craterOpacity;
             }
         });
@@ -767,30 +748,29 @@
             }
         };
 
-        function preloadAllProjectImages() {
-            Object.values(projectPages).forEach(proj => {
-                if (proj.photos) {
-                    proj.photos.forEach(url => {
-                        const img = new Image();
-                        img.src = url;
-                    });
-                }
-                if (proj.craters) {
-                    proj.craters.forEach(url => {
-                        const img = new Image();
-                        img.src = url;
-                    });
-                }
-                if (proj.drawings) {
-                    proj.drawings.forEach(url => {
-                        const img = new Image();
-                        img.src = url;
-                    });
+        // 按需預載當前項目的「下一張圖片」，避免全站近百張圖一次並發搶佔網路與記憶體
+        function preloadNextImages() {
+            const project = projectPages[currentProjectKey];
+            if (!project) return;
+
+            const toPreload = [];
+            if (project.photos && project.photos.length > 1) {
+                toPreload.push(project.photos[(activePhotoIndex + 1) % project.photos.length]);
+            }
+            if (project.drawings && project.drawings.length > 1) {
+                toPreload.push(project.drawings[(activeDrawingIndex + 1) % project.drawings.length]);
+            }
+            if (project.craters && project.craters.length > 1) {
+                toPreload.push(project.craters[(activeCraterIndex + 1) % project.craters.length]);
+            }
+
+            toPreload.forEach(url => {
+                if (url) {
+                    const img = new Image();
+                    img.src = url;
                 }
             });
         }
-
-        window.addEventListener('load', preloadAllProjectImages);
 
         let currentProjectKey = "";
         let activePhotoIndex = 0;   
@@ -798,6 +778,8 @@
         let activeDrawingIndex = 0; 
 
         function openOverlay(key) {
+            simulation.stop(); // ⏸️ 暫停背景 D3 動畫，全速資源給內頁使用
+
             currentProjectKey = key;
             activePhotoIndex = 0;   
             activeCraterIndex = 0;
@@ -812,12 +794,14 @@
             
             renderOverlay(); 
 
-            overlayEl.scrollTop = 0;
+            // 💡 修復未回頂端 Bug：務必「先將元素設為 flex 可見」，再重置 scrollTop
             overlayEl.style.display = 'flex';
             overlayEl.scrollTop = 0;
 
             const hint = document.getElementById('scroll-hint');
             if (hint) hint.style.opacity = '1';
+
+            preloadNextImages();
         }
 
         function renderOverlay() {
@@ -826,7 +810,6 @@
 
             const displayTitle = (project && project.title) ? project.title : `PROJECT_${currentProjectKey}`;
             
-            // 1. 填入 INFO 區內容
             document.getElementById('info-title').innerText = displayTitle;
 
             if (project.info) {
@@ -843,7 +826,6 @@
                 document.getElementById('info-content-text').innerText = "No description available.";
             }
 
-            // 2. 左頻道 PHOTO
             const photoLabel = project.photoTag || "PHOTO";
             if (project.photos && project.photos.length > 0) {
                 document.getElementById('current-photo').src = project.photos[activePhotoIndex];
@@ -853,7 +835,6 @@
                 document.getElementById('text-bottom-left').innerText = `${photoLabel} 0 / 0`;
             }
 
-            // 3. 右頻道 DRAWING
             const drawingLabel = project.drawingTag || "DRAWING";
             if (project.drawings && project.drawings.length > 0) {
                 document.getElementById('current-drawing').src = project.drawings[activeDrawingIndex];
@@ -863,7 +844,6 @@
                 document.getElementById('text-bottom-right').innerText = `${drawingLabel} 0 / 0`;
             }
 
-            // 4. 判斷是否為具有 craters 資料的專案（如 PROJECT_A），動態啟用 Crater 區塊與引導鍵
             const hasCraters = project.craters && project.craters.length > 0;
             const craterSection = document.getElementById('overlay-crater-section');
             const craterHint = document.getElementById('crater-scroll-hint');
@@ -888,6 +868,7 @@
             if (!project || !project.photos || project.photos.length <= 1) return;
             activePhotoIndex = (activePhotoIndex + 1) % project.photos.length;
             renderOverlay();
+            preloadNextImages();
         }
 
         function nextCrater() {
@@ -895,6 +876,7 @@
             if (!project || !project.craters || project.craters.length <= 1) return;
             activeCraterIndex = (activeCraterIndex + 1) % project.craters.length;
             renderOverlay();
+            preloadNextImages();
         }
 
         function nextDrawing() {
@@ -902,6 +884,7 @@
             if (!project || !project.drawings || project.drawings.length <= 1) return;
             activeDrawingIndex = (activeDrawingIndex + 1) % project.drawings.length;
             renderOverlay();
+            preloadNextImages();
         }
 
         function closeOverlay() {
@@ -914,6 +897,8 @@
             
             if (hint) hint.style.opacity = '1';
             if (topLeft) topLeft.style.opacity = '1';
+
+            simulation.alpha(0.05).restart(); // ▶️ 關閉內頁，平順恢復背景 D3 力學模擬
         }
     </script>
 </body>
